@@ -212,7 +212,17 @@ class WecomConfig(Base):
 
 
 class ChannelsConfig(Base):
-    """Configuration for chat channels."""
+    """Configuration for chat channels.
+
+    Plugin channels (symlinked into nanobot/channels/) don't need to register
+    their config class here.  extra="allow" lets unknown channel names pass
+    through from JSON as raw dicts; the channel manager will hand them to the
+    channel's own ``config_class`` for validation.
+    """
+
+    model_config = ConfigDict(
+        alias_generator=to_camel, populate_by_name=True, extra="allow",
+    )
 
     send_progress: bool = True  # stream agent's text progress to the channel
     send_tool_hints: bool = False  # stream tool-call hints (e.g. read_file("…"))

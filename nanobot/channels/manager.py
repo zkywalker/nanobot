@@ -31,23 +31,63 @@ class ChannelManager:
         self._init_channels()
 
     def _init_channels(self) -> None:
-        """Initialize channels discovered via pkgutil scan."""
+        """Initialize channels discovered via pkgutil scan.
+
+        Built-in channels have typed config fields on ``ChannelsConfig``.
+        Plugin channels (symlinked in) may declare a ``config_class`` attribute
+        on their channel class; the manager will construct the config from the
+        raw dict that ``ChannelsConfig(extra="allow")`` preserves from JSON.
+        """
+        from pydantic.alias_generators import to_camel
+
         from nanobot.channels.registry import discover_channel_names, load_channel_class
 
         groq_key = self.config.providers.groq.api_key
 
         for modname in discover_channel_names():
+            # Built-in channels: snake_case attr.  Plugin extras: camelCase key.
             section = getattr(self.config.channels, modname, None)
-            if not section or not getattr(section, "enabled", False):
-                continue
+            if section is None:
+                section = getattr(self.config.channels, to_camel(modname), None)
+
+            # Plugin channel: section is a raw dict from extra="allow".
+            # Load the class first to get its config_class, then parse.
+            if isinstance(section, dict):
+                if not section.get("enabled", False):
+                    continue
+                try:
+                    cls = load_channel_class(modname)
+                except ImportError as e:
+                    logger.warning("{} channel not available: {}", modname, e)
+                    continue
+                config_cls = getattr(cls, "config_class", None)
+                if config_cls is None:
+                    logger.warning(
+                        "{} channel has no config_class, skipping", modname
+                    )
+                    continue
+                try:
+                    section = config_cls(**section)
+                except Exception as e:
+                    logger.error("{} channel config error: {}", modname, e)
+                    continue
+            else:
+                # Built-in channel with typed config field
+                if not section or not getattr(section, "enabled", False):
+                    continue
+                try:
+                    cls = load_channel_class(modname)
+                except ImportError as e:
+                    logger.warning("{} channel not available: {}", modname, e)
+                    continue
+
             try:
-                cls = load_channel_class(modname)
                 channel = cls(section, self.bus)
                 channel.transcription_api_key = groq_key
                 self.channels[modname] = channel
                 logger.info("{} channel enabled", cls.display_name)
-            except ImportError as e:
-                logger.warning("{} channel not available: {}", modname, e)
+            except Exception as e:
+                logger.warning("{} channel failed to init: {}", modname, e)
 
         self._validate_allow_from()
 
