@@ -189,6 +189,13 @@ class ChannelManager:
             for name, channel in self.channels.items()
         }
 
+    def get_channel_tools(self) -> list:
+        """Collect tools from all enabled channels."""
+        tools = []
+        for ch in self.channels.values():
+            tools.extend(ch.get_tools())
+        return tools
+
     @property
     def enabled_channels(self) -> list[str]:
         """Get list of enabled channel names."""

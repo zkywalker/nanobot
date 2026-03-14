@@ -449,6 +449,14 @@ def gateway(
     # Create channel manager
     channels = ChannelManager(config, bus)
 
+    # Register channel-provided tools with the agent
+    channel_tools = channels.get_channel_tools()
+    for tool in channel_tools:
+        agent.tools.register(tool)
+    if channel_tools:
+        tool_names = ", ".join(t.name for t in channel_tools)
+        console.print(f"[green]✓[/green] Registered {len(channel_tools)} channel tools: {tool_names}")
+
     def _pick_heartbeat_target() -> tuple[str, str]:
         """Pick a routable channel/chat target for heartbeat-triggered messages."""
         enabled = set(channels.enabled_channels)

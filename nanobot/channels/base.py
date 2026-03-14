@@ -128,6 +128,10 @@ class BaseChannel(ABC):
 
         await self.bus.publish_inbound(msg)
 
+    def get_tools(self) -> list:
+        """Return channel-specific tools for agent registration. Override in subclass."""
+        return []
+
     @property
     def is_running(self) -> bool:
         """Check if the channel is running."""
